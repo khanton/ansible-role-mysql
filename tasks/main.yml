@@ -1,0 +1,48 @@
+---
+
+- fail:
+    msg: role_mysql_root_pass MUST be set
+  when: role_mysql_root_pass is not defined
+  tags: role_mysql
+  
+- name: Set MySQL root password before installing
+  tags: role_mysql
+  debconf: name=mysql-server question=mysql-server/root_password value="{{ role_mysql_root_pass | quote }}" vtype=password
+
+- name: Confirm MySQL root password before installing
+  tags: role_mysql
+  debconf: name=mysql-server question=mysql-server/root_password_again value="{{ role_mysql_root_pass | quote }}" vtype=password
+
+- name: Install Mysql package
+  tags: role_mysql
+  apt: name="{{ item }}" state=installed
+  with_items:
+  - mysql-server
+  - mysql-client
+  - python-mysqldb
+
+- name: Deletes anonymous MySQL server user for localhost
+  tags: role_mysql
+  mysql_user: user="" state=absent login_password="{{ role_mysql_root_pass }}" login_user=root
+
+- name: Secures the MySQL root user
+  tags: role_mysql
+  mysql_user: 
+    user: root 
+    password: "{{ role_mysql_root_pass }}" 
+    host: "{{ item }}" 
+    login_password: "{{ role_mysql_root_pass }}" 
+    login_user: root
+  with_items:
+    - 127.0.0.1
+    - localhost
+    - ::1
+    - "{{ ansible_fqdn }}"
+
+- name: Removes the MySQL test database
+  tags: role_mysql
+  mysql_db: db=test state=absent login_password="{{ role_mysql_root_pass }}" login_user=root
+
+- name: Restart Mysql
+  tags: role_mysql
+  service: name=mysql state=restarted enabled=yes
